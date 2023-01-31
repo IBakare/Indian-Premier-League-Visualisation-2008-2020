@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="utf-8">
+    <title>B1239012:ICA</title>
+
+    <!--  D3js library -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+        /* CSS Style */
+        body {
+            margin: auto;
+            width: 800px;
+            font: 12px sans-serif;
+        }
+
+        .line {
+            fill: none;
+            stroke: #2C3179;
+            stroke-width: 2px;
+        }
+
+        .line2 {
+            fill: none;
+            stroke: #FFCE34;
+            stroke-width: 2px;
+        }
+
+        .myDiv {
+            text-align: center;
+            color: #2C3179;
+        }
+
+        div.tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 3px;
+            font: 12px arial;
+            background: whitesmoke;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+    </style>
+
+    <!-- Chart heading -->
+    <h4 style="color: #2C3179 ;text-align: center">INDIAN PREMIER LEAGUE (MATCH WON AND MATCH LOST BY EACH TEAM)
+        2008-2020</h4>
+
+</head>
+
+<body>
+
+    <!-- Year Dropdown -->
+    <label style="color: #2C3179">Year:</label>
+    <select id="year"></select>
+
+    <!-- Sort the barchart -->
+    <input type="checkbox" id="sort">Sort Bars
+
+    <!-- Chart Div assigned to an ID -->
+    <div id="chart">
+    </div>
+
+    <!-- Team Abbreviation -->
+    <div class="myDiv">
+        TEAM ABBREVIATIONS<br>
+        RSP: Rising Pune Supergiants...
+        CSK: Chennai Super Kings...
+        DCH: Deccan Chargers...
+        DCA: Deccan Capital...
+        DDV: Delhi Daredevils..
+        GLS: Gujarat Lions...
+        KXP: Kings XI Punjab...
+        KTK: Kochi Tuskers Kerala...
+        KKR: Kolkata Knight Riders...
+        MID: Mumbai Indians...
+        PWS: Pune Warriors...
+        RRS: Rajasthan Royals...
+        RCB: Royal Challengers Bangalore...
+        SHD: Sunrisers Hyderabad...
+    </div>
+
+    <script>
+        /// Acknowledgements
+        //
+        // This  bar chart code is based upon this one: https://bl.ocks.org/LemoNode/5a64865728c6059ed89388b5f83d6b67
+        //
+        // I have updated to:
+        // 1) work with d3 version 7,
+        // 2) Added Legend
+        // 3) added d3-tooltip.
+        // 4) Defined some methods and functions in another way
+
+        //call the csv file
+        d3.csv("B1239012.csv").then(d => chart(d))
+        function chart(myChart) {
+
+            // slice after the second column and column heading assigned to myBar
+            const myBar = myChart.columns.slice(2);
+            console.log(myBar);
+
+            //assign year to Year from the csv file and print to console
+            const year = [...new Set(myChart.map(d => d.Year))]
+            console.log(year);
+
+            //assign teams to Team from the csv file and print to console 
+            //(... Rest Parameter for array: upacking to distict variable)
+            const teams = [...new Set(myChart.map(d => d.Team))]
+            console.log(teams);
+
+            //Append options to  year element based on data
+            const option = d3.select("#year").selectAll("option")
+                .data(year)
+                .enter().append("option")
+                .text(d => d)
+            console.log(option);
+
+
+            // Set margin to produce a clear and centred chart
+            const margin = { top: 20, right: 10, bottom: 35, left: 50 };
+            const graphWidth = 1000, graphHeight = 530;
+            const width = graphHeight - margin.left - margin.right,
+                height = graphHeight - margin.top - margin.bottom;
+
+            //tooltip to be used later
+            const div = d3.select("#chart").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+
+
+            // append the svg object to the chart div
+            const svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            //Scale and axis
+            const x = d3.scaleBand()
+                .range([margin.left, width - margin.right])
+                .padding(0.2)
+
+            const y = d3.scaleLinear()
+                .rangeRound([height - margin.bottom, margin.top])
+
+            const xAxis = svg.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .attr("class", "x-axis")
+
+            const yAxis = svg.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .attr("class", "y-axis")
+
+            // Bar Colour
+            const z = d3.scaleOrdinal()
+                .range(["#2C3179", "#FFCE34"])
+                .domain(myBar);
+
+            //Filter Data by Year 
+            update(d3.select("#year").property("value"))
+
+            function update(input, speed) {
+
+                // => arrow function. 
+                //The left part denotes the input of function and 
+                //the right part the output of that function
+                const data = myChart.filter(e => e.Year == input)
+
+                //For each year sum the Matchwon and Matchlost from the data
+                data.forEach(function (d) {
+                    d.total = d3.sum(myBar, k => +d[k])
+                    return d
+                })
+
+                //on the Y domain(axis) we have the a range of 0 to the maximum number
+                y.domain([0, d3.max(data, d => d3.sum(myBar, k => +d[k]))]).nice();
+
+                svg.selectAll(".y-axis").transition().duration(speed)
+                    .call(d3.axisLeft(y).ticks(null, "s"))
+
+                //Sort
+                data.sort(d3.select("#sort").property("checked")
+                    ? (a, b) => b.total - a.total
+                    : (a, b) => teams.indexOf(a.Team) - teams.indexOf(b.Team))
+
+                //on the X domain(axis) we have the teams(Note:Data is filtered by year)
+                x.domain(data.map(d => d.Team));
+
+                svg.selectAll(".x-axis").transition().duration(speed)
+                    .call(d3.axisBottom(x).tickSizeOuter(0))
+
+                //The Stacked bars: d3.stack
+                const group = svg.selectAll("g.layer")
+                    .data(d3.stack().keys(myBar)(data), d => d.key)
+                group.exit().remove()
+                group.enter().append("g")
+                    .classed("layer", true)
+                    .attr("fill", d => z(d.key))
+
+                    //tooltip
+                    .on("mouseover", function (event, d) {
+                        div.transition()
+                            .ease(d3.easeBounceOut)
+                            .delay(function (d, i) { return (i * 1) })
+                            .duration(200)
+                            .style("opacity", .9);
+
+                        div.html((d.key ))
+                            .style("left", (event.pageX) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+
+                    })
+
+                    .on("mouseout", function (d) {
+                        div.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+
+
+                //Drawing the graph
+                const bars = svg.selectAll("g.layer").selectAll("rect")
+                    .data(d => d, e => e.data.Team)
+
+
+                bars.enter().append("rect")
+                    .attr("width", x.bandwidth())
+                    .merge(bars)
+                    .transition().duration(speed)
+                    .attr("x", d => x(d.data.Team))
+                    .attr("y", d => y(d[1]))
+                    .attr("height", d => y(d[0]) - y(d[1]))
+
+
+
+                // Basic legend
+                const legendGroup = svg.append('g')
+
+                legendGroup.append('line')
+                    .attr('x1', 150)
+                    .attr('x2', 200)
+                    .attr('class', 'line')
+
+                legendGroup.append('text')
+                    .attr('x', 220)
+                    .style('fill', 'black')
+                    .text('MatchWon');
+
+                legendGroup.append('line')
+                    .attr('x1', 300)
+                    .attr('x2', 350)
+                    .attr('class', 'line2');
+
+                legendGroup.append('text')
+                    .attr('x', 370)
+                    .style('fill', 'black')
+                    .text('MatchLost');
+
+                //Show the total number of match played
+                const text = svg.selectAll(".text")
+                    .data(data, d => d.Team);
+                text.enter().append("text")
+                    .attr("class", "text")
+                    .attr("text-anchor", "middle")
+                    .merge(text)
+                    .transition().duration(speed)
+                    .attr("x", d => x(d.Team) + x.bandwidth() / 2)
+                    .attr("y", d => y(d.total) - 2)
+                    .text(d => d.total)
+            }
+
+            //on select dropdown
+            const select = d3.select("#year")
+                .on("change", function () {
+                    update(this.value, 750)
+                })
+
+
+            //on select sort bar
+            const checkbox = d3.select("#sort")
+                .on("click", function () {
+                    update(select.property("value"))
+                })
+
+        }
+
+    </script>
+
+</body>
+
+</html>
